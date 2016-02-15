@@ -1,0 +1,10 @@
+state-props changelog
+=====================
+
+-----------------
+0.2.0 [2016-02-01]
+- redux-state-props decoupled: state-props no longer connects automatically to redux-state-props reducers in context.
+- readme rewritten: reworded using mutations and mutators
+-----------------
+0.1.x [2016-01-20]
+(initial development version)

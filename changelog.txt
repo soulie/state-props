@@ -1,6 +1,11 @@
 state-props changelog
 =====================
-
+0.4.0 [2016-02-23]
+- added mergeProps argument (breaks: 3rd argument opt becomes 4th)
+-----------------
+0.3.0 [2016-02-15]
+- introduction of "mutagens"
+- changed the way state-props can be bound to the store
 -----------------
 0.2.0 [2016-02-01]
 - redux-state-props decoupled: state-props no longer connects automatically to redux-state-props reducers in context.

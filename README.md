@@ -1,47 +1,64 @@
 # State Props
 
-Add state to props, declarative-style.
+Add state to stateless components through props, using declarative-style.
 
 ## Usage
 
-**stateProps** is designed as a *Higher-order Component* that inserts state
-into a React component as `props.state`.
+**stateProps** is a *Higher-order Component* that inserts state into a React component as `props.state`.
 
-The state is defined by an initial **state** and a set of state **mutations** (and, optionally, a **mutagen** function):
+By default it inserts two props (`props.state`) and (`props.setState`) that are similar to `this.state` and `this.setState` in a regular React component. For example:
 
 ```
-stateProps ( state, mutations [, options] )
+function Stateless ({state, setState}) {
+  return (
+    <div style="background-color:{state.color}; margin:20px">
+      <button onClick={setState({color:"blue"})}>Blue</button>
+      <button onClick={setState({color:"red"})}>Red</button>
+    </button>
+  );
+}
+const Stateful = stateProps({color:"silver"})(Stateless);
 ```
 
-* `state` is a plain object describing the initial state.
+## Arguments
 
-* `mutations` is an object with methods. Each method is a state **mutation**.
+The `stateProps` function accepts the following arguments (all optional):
+```
+stateProps ( initialState, mutations, mergeProps )
+```
 
-* `options` (optional)
+* `initialState` is a plain object describing the initial state passed as `props.state`. By default, it is am *empty object*:
+  ```
+  initialState = {}
+  ```
+
+* `mutations` is an object with methods. Each method is a state **mutation** (see below). By default, it provides the `setState` mutation:
+  ```
+  mutations = { setState: changes => state => Object.assign({},state,changes) }
+  ```
+
+* `mergeProps` is a function that takes the **props** generated from the **mutations** and those passed to the component and returns the **props** to be passed to the wrapped component. It is called every time the component's `props` change. By default it simply merges them:
+  ```
+  mergeProps = (mutators,ownProps) => Object.assign({},mutators,ownProps)
+  ```
 
 
 ## Mutations
-A **mutation** is a function returning a function, in the following form (ES6-style):
+A **mutation** is a function returning the new state based on some arguments:
+```
+(...args) => nextState
+```
+If the next state needs to be based also on the *current state*, the mutation can also return a function that takes the current state as argument, thus, the **mutation** is a function returning a function:
 ```
 (...args) => (state) => nextState
 ```
-The *outer function* takes any number of arguments, and the *inner function* takes a `state`, returning the **next state**. For exmaple:
+The *outer function* takes any number of arguments, and the *inner function* takes a `state`, returning the **next state**. For example:
 ```
 const addToCounter = (increase) => (state) => ({
   counter: state.counter + increase
 });
 ```
-If you are not familiar with ES6-style [arrow functions](//developer.mozilla.org/en/docs/Web/JavaScript/Reference/Functions/Arrow_functions), the definition above is roughly equivalent to:
-```
-function addToCounter (increase) {
-  return function (state) {
-    return {counter: state.counter + increase};
-  }
-}
-```
-Both functions in a **mutation** should compose as a *pure function*, i.e., they should not cause side effects, nor use values other than those provided as arguments to both. The *outer function* is there simply to provide arguments to the operation, while the *inner function* defines a **state transformation**.
-
-The **state transformation** shall consider its `state` argument immutable and thus shall not modify it. Instead, it shall return either a new state object or the original `state` unchanged. Note that this makes mutations only **describe changes** in state, without actually performing those changes. This abstracts the definition of a component's state from the specifics of the actual process and storage used to keep that state.
+Both functions should compose as a *pure function*. I.e., they should not cause side effects, nor use values other than those provided as arguments to both. The arguments shall be considered immutable.
 
 The `mutations` argument passed to `stateProps` shall be an object with each method being one of these **mutations**. For example:
 ```
@@ -78,7 +95,7 @@ function StatelessComponent ({state, increment, set}) {
 const initialState = {
   counter:0
 };
-const mutationss = {
+const mutations = {
   set: x => state => {counter:x},
   increment: () => state => ({
     counter: state.counter + 1
@@ -87,62 +104,15 @@ const mutationss = {
 const Component = stateProps(initialState,mutations)(StatelessComponent);
 ```
 The `stateProps` Higher-order Component keeps the current state internally and passes it to the stateless component as `props.state`. It also injects a **mutator** function in the `props` for every **mutation** passed as second argument.
+
 ### Mutation _vs_ mutator
-* A **mutation** is one of the methods passed to `stateProps`. Each mutation simply *describes* a state change: (`(...args)=>(state)=>nextState`).
-* A **mutator** is a function passed to the actual component as a `props` that performs a change in state, as described by the *mutation* with the same name. It takes the same arguments and is automatically generated by `stateProps`: One for every **mutation** passed to it.
+* A **mutation** is one of the methods passed to `stateProps`. Each mutation simply *describes* a state change:
+  ```
+  (...args) => (state) => nextState
+  ```
+* A **mutator** is a function passed to the actual component as a `prop`. Calling this function actually performs the change  described by the *mutation* with the same name. `stateProps` automatically generates the **mutators** from the **mutations** it is passed.
 
-## Async state changes
-
-Pure declarative mutations are a great feature, but they can be a pain for asynchronous operations, such as fetching data from the server. The effects of
-asynchronous operations generally depend on another (possibly lengthy)
-operation, whose result is not known when the function is called,
-making it impossible to determine the mutations before it returns.
-
-The solution to async operations proposed by this package is to declare these
-changes as an array of functions with the following structure:
-
-```
-[actionFunction, mutation1, mutation2, mutation3, ...]
-```
-
-Essentially, it is an array of *mutations*, except for the first element (`actionFunction`),
-which is a special function with the following form:
-
-```
-var myAction = (...args) =>
-  (mutator1,mutator2,mutator3) =>
-    {
-      /* perform actions based on ...args (including side effects),
-       and call one of change1, change2 or change3 ...*/
-    };
-```
-
-`mutation1`, `mutation2` and `mutation3` are regular *mutation* functions (i.e., functions returning functions, as described in *Usage*). These functions are
-automatically bound as **mutators** and passed
-to the function returned by `myAction` as its arguments `mutator1`,
-`mutator2` and `mutator3`.
-
-For example:
-
-```
-const initialState = {
-  theData: {},
-  error: null
-};
-const stateChanges = {
-  getDataFromServer: [
-    (which) => (onSuccess,onFailure) => {
-      fetch(someRequest).then(onSuccess).catch(onFailure);
-    },
-    (data) => ({ theData:data, error:null }),
-    (err) => ({ theData:{}, error:err })
-  ]
-};
-```
-
-This structure to declare mutations forces a separation between
-the action functions and the description of the possible state changes it can cause. Thus allowing features such as hot reload and time travel with the proper store.
-
+A **mutation** *describes* a change; a **mutator** *performs* that change in the component's state.
 
 ## Redux
 
@@ -150,16 +120,20 @@ Redux uses **actions** and **reducers** to separate imperative behavior (with
 functions that dispatch actions) from declarative state changes (reducers that
 translate actions to state changes).
 
-Reducers are a pretty similar concept to this package's **mutations**
-(both take a state object and return its replacement when necessary). The advantage
+The declarative nature of this package's **mutations**, makes them a pretty similar
+concept to **redux**'s reducers
+(both take a state and return its replacement). The advantage
 of considering only **local state** is that actions are dispatched by a
 component and reduced for the state of that same component, making the actions'
-shape trivial and its creation repetitive. By using `stateMutations` objects (whose
-methods are *mutations*) we combine actions and reducers into one,
+shape trivial and its creation repetitive. By using `mutations` objects,
+we combine actions and reducers into one,
 reducing boilerplate while preserving the declarative nature of reducers.
 
 There is a version of this package that stores the state of your components in a **redux store**.
 Please see ([redux-state-props](https://npmjs.com/package/redux-state-props)).
+
+## Example
+See [Todo-List Example](https://github.com/soulie/state-props-examples/tree/master/todolist)
 
 ## License
 

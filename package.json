@@ -1,6 +1,6 @@
 {
   "name": "state-props",
-  "version": "0.3.0",
+  "version": "0.4.4",
   "description": "Inject state into props (for stateless react components)",
   "keywords":["state","props","functional","react","redux","reducer","hot","reload"],
   "dependencies": {
